@@ -196,8 +196,8 @@ def main():
     competition_time_li = []
     acc_li = []
     # dataset file name
-    data_file =  'sonar.data'
-    column_file = 'sonar.names'
+    data_file =  'sonar.data'    # wbcd.data  , sonar.data
+    column_file = 'sonar.names'  # wbcd.names , sonar.names
     
     # load data
     dataset = load_data(column_file, data_file)
