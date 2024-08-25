@@ -1,0 +1,115 @@
+import random
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold
+from sklearn.feature_selection import RFECV
+import matplotlib.pyplot as plt
+import pandas as pd
+import math
+import time
+
+def load_data(column_file_name, data_file_name):
+    """
+        Extract data from file and return datset
+    """
+    # Extract Column names --------------------------------------
+    columns_name = []
+    with open(column_file_name,'r') as columns_file: 
+        columns = columns_file.readlines()
+        for idx, line in enumerate(columns): # extract values
+            if idx == 0: continue
+            x = line.split()
+            columns_name.append(x[0])
+    columns_name.append('class')   # add column for target column
+
+    # Extract data from file and create dataset -----------------
+    dataset = pd.read_csv(data_file_name)
+    dataset.columns = columns_name
+
+    return dataset
+
+def initial_pop(population_size, feature_num, seed_val):
+    """
+    Generate the initial population for the genetic algorithm.
+
+    Args:
+        population_size (int): The desired size of the initial population.
+        feature_num (int): The number of the feature in dataset.
+
+    Returns:
+        list: A list of individuals, where each individual is a binary vector
+              representing a potential solution. The length of each individual is equal to `feature_num`.
+    """
+    random.seed(seed_val)
+    return [np.random.randint(2, size=feature_num) for _ in range(population_size)]
+
+def WrapperGA(X, y):
+    """
+        -  In wrapper methods, we try to use a subset of features and train a model using them. Based on the inferences that we draw from the previous model, 
+                we decide to add or remove features from the subset.
+
+        -  Recursive Feature Elimination with Cross-Validated (RFECV) feature selection technique selects the best subset 
+                of features for the estimator by removing 0 to N features iteratively using recursive feature elimination.
+        
+        -  Then it selects the best subset based on the accuracy or cross-validation score or roc-auc of the model. 
+                Recursive feature elimination technique eliminates n features from a model by fitting the model multiple times and at each step, removing the weakest features.
+        
+        -  
+    """
+
+    #min_features_to_select = 1  # Minimum number of features to consider
+    clf = LogisticRegression()
+    cv = StratifiedKFold(5)
+
+    rfecv = RFECV(
+        estimator=clf,
+        step=1,
+        cv=cv,
+        scoring="accuracy",
+        #min_features_to_select=min_features_to_select,
+        n_jobs=2,
+    )
+    rfecv.fit(X, y)
+
+    # Names of selected features
+    selected_features = X.columns[rfecv.support_] # support_: get boolean value for each feature, the feature with (True) means it selected feature
+    return selected_features
+
+
+def main():
+    # Genetic operation setting 
+    population_size = 20
+    generations = 2
+    mutation_rate = 0.2
+    crossover_rate = 0.5
+    seed_value = [20, 30, 40, 50, 60]
+    run_no = 5
+    competition_time_li = []
+    acc_li = []
+    # dataset file name
+    data_file =  'sonar.data'
+    column_file = 'sonar.names'
+    
+    # load data
+    dataset = load_data(column_file, data_file)
+    feature = dataset.iloc[:,:-1]
+    target = dataset.iloc[:,-1]
+
+    for run in range(run_no):
+        start_time = time.time()  # Start timer for this run
+
+        # FEATURE FITNESS FUNCTION: 
+        WrapperGA_fs = WrapperGA(feature, target)  # Wrapper-based feature selection 
+
+        # DATA TASFORMATION: create new dataset for each filter approach, created datset that only contain selected feature 
+        WrapperGA_datset = dataset[:][list(WrapperGA_fs.array) + ['class']]
+
+        # INITIALIZATION: Initialize the population 
+        WrapperGA_population = initial_pop(population_size, WrapperGA_datset.iloc[:, :-1].shape[1], seed_value[run])
+
+if __name__ == "__main__":
+    main()
