@@ -59,7 +59,7 @@ def classification(individual, dataset, target):
     """
     selected_features = [index for index in range(len(individual)) if individual[index] == 1]
     if len(selected_features) == 0:
-        return 0,
+        return 0
     
     X_selected = dataset[:, selected_features]
     X_train, X_test, y_train, y_test = train_test_split(X_selected, target, test_size=0.3, random_state=42)
@@ -186,7 +186,7 @@ def calculate_stats(list_value):
 def main():
     # Genetic operation setting 
     population_size = 50
-    generations = 50
+    generations = 10
     mutation_rate = 0.2
     crossover_rate = 0.5
     seed_value = [20, 30, 40, 50, 60]
@@ -194,8 +194,8 @@ def main():
     competition_time_li = []
     acc_li = []
     # dataset file name
-    data_file =  'sonar.data'
-    column_file = 'sonar.names'
+    data_file =  'sonar.data'    # wbcd.data  , sonar.data
+    column_file = 'sonar.names'  # wbcd.names , sonar.names
 
     # load data
     dataset = load_data(column_file, data_file)
@@ -230,6 +230,10 @@ def main():
 
             # REPLACEMENT: Replace the least fit individuals with the new offspring
             FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
+            FilterGA_fitness = np.array(FilterGA_fitness)
+            FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
+            FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
+
 
             FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
 
