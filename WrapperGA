@@ -53,7 +53,7 @@ def classification(individual, dataset, target):
     """
     selected_features = [index for index in range(len(individual)) if individual[index] == 1]
     if len(selected_features) == 0:
-        return 0,
+        return 0
     
     X_selected = dataset[:, selected_features]
     X_train, X_test, y_train, y_test = train_test_split(X_selected, target, test_size=0.3, random_state=42)
