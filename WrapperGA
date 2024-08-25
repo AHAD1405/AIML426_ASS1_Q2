@@ -90,6 +90,9 @@ def WrapperGA(X, y):
         n_jobs=2,
     )
     rfecv.fit(X, y)
+    
+    # Get the accuracy of the best subset of features
+    accuracy = accuracy_score(y, rfecv.predict(X))
 
     # Names of selected features
     selected_features = X.columns[rfecv.support_] # support_: get boolean value for each feature, the feature with (True) means it selected feature
