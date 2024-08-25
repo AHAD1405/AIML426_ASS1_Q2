@@ -47,6 +47,22 @@ def initial_pop(population_size, feature_num, seed_val):
     random.seed(seed_val)
     return [np.random.randint(2, size=feature_num) for _ in range(population_size)]
 
+def classification(individual, dataset, target):
+    """
+        The fitness function evaluates the performance of the selected features:
+    """
+    selected_features = [index for index in range(len(individual)) if individual[index] == 1]
+    if len(selected_features) == 0:
+        return 0,
+    
+    X_selected = dataset[:, selected_features]
+    X_train, X_test, y_train, y_test = train_test_split(X_selected, target, test_size=0.3, random_state=42)
+    clf = RandomForestClassifier(n_estimators=50)
+    clf.fit(X_train, y_train)
+    predictions = clf.predict(X_test)
+
+    return accuracy_score(y_test, predictions)
+
 def WrapperGA(X, y):
     """
         -  In wrapper methods, we try to use a subset of features and train a model using them. Based on the inferences that we draw from the previous model, 
@@ -79,6 +95,37 @@ def WrapperGA(X, y):
     selected_features = X.columns[rfecv.support_] # support_: get boolean value for each feature, the feature with (True) means it selected feature
     return selected_features
 
+def crossover(parent1, parent2, crossover_rate):
+    """
+        The function chooses a random crossover point, 
+        then creates two new individuals by concatenating the genetic material of the two parents at that point
+    """
+    if np.random.rand() < crossover_rate:
+        num_features = parent1.shape[0]
+        crossover_point = np.random.randint(1, num_features - 1)
+        child1 = np.concatenate((parent1[:crossover_point], parent2[crossover_point:]))
+        child2 = np.concatenate((parent2[:crossover_point], parent1[crossover_point:]))
+        return child1, child2
+    else:
+        return parent1, parent2
+
+def mutation(individual, mutation_rate):
+    """
+    The function iterates over each element of the individual's genetic vector and, 
+    with probability mutation_rate, flips the element (i.e., changes 0 to 1 or 1 to 0)
+
+    PARAM: 
+        - individual (list): A list representing the genetic vector or chromosome of an individual in the population.
+        - items: A list of tuples, where each tuple represents an item with its weight and value (weight, value).
+    RETURN:
+        - mutated_individual (list): A new list representing the mutated individual's genetic vector after applying the mutation operation.
+    """
+    gens = individual.shape[0]
+    mutated_individual = individual.copy()
+    for i in range(gens):
+        if random.random() < mutation_rate:
+            mutated_individual[i] = 1 - mutated_individual[i]
+    return mutated_individual
 
 def main():
     # Genetic operation setting 
@@ -110,6 +157,26 @@ def main():
 
         # INITIALIZATION: Initialize the population 
         WrapperGA_population = initial_pop(population_size, WrapperGA_datset.iloc[:, :-1].shape[1], seed_value[run])
+
+        # Apply Selection process
+        for generation in range(generations):
+
+            # EVALUATE: clasification and evaluates the performance of the selected features
+            WrapperGA_fitness = [classification(individual, WrapperGA_datset.iloc[:,:-1].values, WrapperGA_datset.iloc[:,-1].values) for individual in WrapperGA_population]
+
+            WrapperGA_parents = np.array(WrapperGA_population)[np.argsort(WrapperGA_fitness)][-2:]
+
+            # CROSSOVER: Perform crossover to generate new offspring
+            WrapperGA_offspring = crossover(WrapperGA_parents[0], WrapperGA_parents[1], crossover_rate)
+
+            # MUTATION: Perform mutation on the new offspring
+            WrapperGA_offspring = [mutation(_, mutation_rate) for _ in WrapperGA_offspring]
+
+            # REPLACEMENT: Replace the least fit individuals with the new offspring
+            WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
+
+            WrapperGA_population = WrapperGA_population[np.argsort(WrapperGA_fitness)][:-2]
+
 
 if __name__ == "__main__":
     main()
