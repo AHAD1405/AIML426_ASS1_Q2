@@ -186,7 +186,7 @@ def calculate_stats(list_value):
 def main():
     # Genetic operation setting 
     population_size = 50
-    generations = 2
+    generations = 50
     mutation_rate = 0.2
     crossover_rate = 0.5
     seed_value = [20, 30, 40, 50, 60]
