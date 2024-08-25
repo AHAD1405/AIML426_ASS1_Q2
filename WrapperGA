@@ -188,7 +188,7 @@ def calculate_stats(list_value):
 def main():
     # Genetic operation setting 
     population_size = 50
-    generations = 50
+    generations = 5
     mutation_rate = 0.2
     crossover_rate = 0.5
     seed_value = [20, 30, 40, 50, 60]
@@ -232,8 +232,9 @@ def main():
 
             # REPLACEMENT: Replace the least fit individuals with the new offspring
             WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
-
+            WrapperGA_fitness = np.array(WrapperGA_fitness)
             WrapperGA_population = WrapperGA_population[np.argsort(WrapperGA_fitness)][:-2]
+            WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
         
         end_time = time.time()  # End timer for this run
         competitive_time = end_time - start_time  # Calculate competitive time for this run
