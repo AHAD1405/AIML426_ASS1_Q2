@@ -252,6 +252,7 @@ def main():
     print(f'Competional Time Table:\n {competitive_time_table}')
     # print('Generation {}: FilterGA best fitness = {:.4f}, WrapperGA best fitness = {:.4f}'.format(generation, max(FilterGA_fitness), max(WrapperGA_fitness)))
     # print(competition_time_li)
+    # dfsdfsdfs
 
 if __name__ == "__main__":
     main()
