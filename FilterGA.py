@@ -7,15 +7,22 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import MinMaxScaler
 import time
 import math
+import os
 
 def load_data(column_file_name, data_file_name):
     """
         Extract data from file and return datset
     """
+
+    full_path = os.path.abspath(__file__) # Get the full path of the script     
+    script_directory = os.path.dirname(full_path) # Get the directory of the script
+    data_file = os.path.join(script_directory,data_file_name) 
+    columns_file = os.path.join(script_directory, column_file_name) # wbcd.names , sonar.names
+
     # Extract Column names --------------------------------------
     columns_name = []
-    with open(column_file_name,'r') as columns_file: 
-        columns = columns_file.readlines()
+    with open(columns_file,'r') as columns_file_: 
+        columns = columns_file_.readlines()
         for idx, line in enumerate(columns): # extract values
             if idx == 0: continue
             x = line.split()
@@ -23,7 +30,7 @@ def load_data(column_file_name, data_file_name):
     columns_name.append('class')   # add column for target column
 
     # Extract data from file and create dataset -----------------
-    dataset = pd.read_csv(data_file_name)
+    dataset = pd.read_csv(data_file)
     dataset.columns = columns_name
 
     return dataset
@@ -194,69 +201,77 @@ def main():
     competition_time_li = []
     acc_li = []
     # dataset file name
-    data_file =  'sonar.data'    # wbcd.data  , sonar.data
-    column_file = 'sonar.names'  # wbcd.names , sonar.names
+    data_file =  ['sonar.data', 'wbcd.data']    # wbcd.data  , sonar.data
+    column_file = ['sonar.names', 'wbcd.names']  # wbcd.names , sonar.names
 
-    # load data
-    dataset = load_data(column_file, data_file)
-    feature = dataset.iloc[:,:-1]
-    target = dataset.iloc[:,-1]
+    for file, file_columns in zip(data_file, column_file):
+        # load data
+        dataset = load_data(file_columns, file)
+        feature = dataset.iloc[:,:-1]
+        target = dataset.iloc[:,-1]
 
-    for run in range(run_no):
-        start_time = time.time()  # Start timer for this run
+        # reset parameters with each dataset 
+        competition_time_li =[]
+        acc_li = []
 
-        # FEATURE FITNESS FUNCTION: 
-        FilterGA_fs = FilterGA(feature, target)   # Filter-based feature selection
+        for run in range(run_no):
+            print(f'Run {run+1} of {run_no}:')
+            start_time = time.time()  # Start timer for this run
 
-        # DATA TASFORMATION: create new dataset for each filter approach, created datset that only contain selected feature 
-        FilterGA_dataset = dataset[:][FilterGA_fs + ['class']]
+            # FEATURE FITNESS FUNCTION: 
+            FilterGA_fs = FilterGA(feature, target)   # Filter-based feature selection
 
-        # INITIALIZATION: Initialize the population 
-        FilterGA_population = initial_pop(population_size, FilterGA_dataset.iloc[:,:-1].shape[1], seed_value[run])
+            # DATA TASFORMATION: create new dataset for each filter approach, created datset that only contain selected feature 
+            FilterGA_dataset = dataset[:][FilterGA_fs + ['class']]
 
-        # Apply Selection process
-        for generation in range(generations):
+            # INITIALIZATION: Initialize the population 
+            FilterGA_population = initial_pop(population_size, FilterGA_dataset.iloc[:,:-1].shape[1], seed_value[run])
 
-            # EVALUATE: clasification and evaluates the performance of the selected features
-            FilterGA_fitness = [classification(individual, FilterGA_dataset.iloc[:,:-1].values, FilterGA_dataset.iloc[:,-1].values) for individual in FilterGA_population]
+            # Apply Selection process
+            for generation in range(generations):
+                print(f'\tGeneration {generation+1} of {generations} . . .')
+                # EVALUATE: clasification and evaluates the performance of the selected features
+                FilterGA_fitness = [classification(individual, FilterGA_dataset.iloc[:,:-1].values, FilterGA_dataset.iloc[:,-1].values) for individual in FilterGA_population]
 
-            FilterGA_parents = np.array(FilterGA_population)[np.argsort(FilterGA_fitness)][-2:]
+                FilterGA_parents = np.array(FilterGA_population)[np.argsort(FilterGA_fitness)][-2:]
 
-            # CROSSOVER: Perform crossover to generate new offspring
-            FilterGA_offspring = crossover(FilterGA_parents[0], FilterGA_parents[1], crossover_rate)
+                # CROSSOVER: Perform crossover to generate new offspring
+                FilterGA_offspring = crossover(FilterGA_parents[0], FilterGA_parents[1], crossover_rate)
 
-            # MUTATION: Perform mutation on the new offspring
-            FilterGA_offspring = [mutation(_, mutation_rate) for _ in FilterGA_offspring]
+                # MUTATION: Perform mutation on the new offspring
+                FilterGA_offspring = [mutation(_, mutation_rate) for _ in FilterGA_offspring]
 
-            # REPLACEMENT: Replace the least fit individuals with the new offspring
-            FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
-            FilterGA_fitness = np.array(FilterGA_fitness)
-            FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
-            FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
+                # REPLACEMENT: Replace the least fit individuals with the new offspring
+                FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
+                FilterGA_fitness = np.array(FilterGA_fitness)
+                FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
+                FilterGA_population = np.vstack((FilterGA_population, FilterGA_offspring))
 
 
-            FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
+                FilterGA_population = FilterGA_population[np.argsort(FilterGA_fitness)][:-2]
 
-            end_time = time.time()  # End timer for this run
-        competitive_time = end_time - start_time  # Calculate competitive time for this run
-        competition_time_li.append(competitive_time)
-        acc_li.append(max(FilterGA_fitness))
+                end_time = time.time()  # End timer for this run
+            competitive_time = end_time - start_time  # Calculate competitive time for this run
+            competition_time_li.append(competitive_time)
+            acc_li.append(max(FilterGA_fitness))
+            print('------------------------------------------------')
 
-    # Create a table and calculate mean and STD
-    acc_mean, acc_std = calculate_stats(acc_li)
-    acc_li = [round(x, 2) for x in acc_li]
-    acc_table = create_table(acc_li, round(acc_mean), round(acc_std))
+        # Create a table and calculate mean and STD
+        acc_mean, acc_std = calculate_stats(acc_li)
+        acc_li = [round(x, 2) for x in acc_li]
+        acc_table = create_table(acc_li, round(acc_mean), round(acc_std))
 
-    competitive_time_mean, competitive_time_std = calculate_stats(competition_time_li)
-    competition_time_li = [round(x, 2) for x in competition_time_li]
-    competitive_time_table = create_table(competition_time_li, round(competitive_time_mean), round(competitive_time_std))
-    
-    # Print the best fitness values for each generation
-    print(f'Accuracy Table\n {acc_table}')
-    print(f'Competional Time Table:\n {competitive_time_table}')
-    # print('Generation {}: FilterGA best fitness = {:.4f}, WrapperGA best fitness = {:.4f}'.format(generation, max(FilterGA_fitness), max(WrapperGA_fitness)))
-    # print(competition_time_li)
-    # dfsdfsdfs
+        competitive_time_mean, competitive_time_std = calculate_stats(competition_time_li)
+        competition_time_li = [round(x, 2) for x in competition_time_li]
+        competitive_time_table = create_table(competition_time_li, round(competitive_time_mean), round(competitive_time_std))
+        
+        # Print the best fitness values for each generation
+        print(f'Accuracy Table\n {acc_table}')
+        print(f'Competional Time Table:\n {competitive_time_table}')
+        print('-----------------------------------------\n')
+        # print('Generation {}: FilterGA best fitness = {:.4f}, WrapperGA best fitness = {:.4f}'.format(generation, max(FilterGA_fitness), max(WrapperGA_fitness)))
+        # print(competition_time_li)
+        # dfsdfsdfs
 
 if __name__ == "__main__":
     main()

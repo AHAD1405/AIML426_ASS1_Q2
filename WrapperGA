@@ -11,15 +11,30 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import math
 import time
+import os
+import warnings
+import matplotlib
+
+#matplotlib.use('Agg')  # Use a non-interactive backend
+matplotlib.use('TkAgg')  # Use a non-interactive backend
+warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)  # Suppress specific warnings
+warnings.filterwarnings("ignore", category=FutureWarning)  # Suppress specific warnings
 
 def load_data(column_file_name, data_file_name):
     """
         Extract data from file and return datset
     """
+
+    # Read file and extract data file
+    full_path = os.path.abspath(__file__) # Get the full path of the script     
+    script_directory = os.path.dirname(full_path) # Get the directory of the script
+    data_file = os.path.join(script_directory,data_file_name) 
+    columns_file = os.path.join(script_directory, column_file_name) # wbcd.names , sonar.names
+
     # Extract Column names --------------------------------------
     columns_name = []
-    with open(column_file_name,'r') as columns_file: 
-        columns = columns_file.readlines()
+    with open(columns_file,'r') as columns_file_: 
+        columns = columns_file_.readlines()
         for idx, line in enumerate(columns): # extract values
             if idx == 0: continue
             x = line.split()
@@ -27,7 +42,7 @@ def load_data(column_file_name, data_file_name):
     columns_name.append('class')   # add column for target column
 
     # Extract data from file and create dataset -----------------
-    dataset = pd.read_csv(data_file_name)
+    dataset = pd.read_csv(data_file)
     dataset.columns = columns_name
 
     return dataset
@@ -63,22 +78,16 @@ def classification(individual, dataset, target):
 
     return accuracy_score(y_test, predictions)
 
-def WrapperGA(X, y):
+def WrapperGA(X, y, seed_val):
     """
-        -  In wrapper methods, we try to use a subset of features and train a model using them. Based on the inferences that we draw from the previous model, 
-                we decide to add or remove features from the subset.
-
-        -  Recursive Feature Elimination with Cross-Validated (RFECV) feature selection technique selects the best subset 
-                of features for the estimator by removing 0 to N features iteratively using recursive feature elimination.
-        
-        -  Then it selects the best subset based on the accuracy or cross-validation score or roc-auc of the model. 
-                Recursive feature elimination technique eliminates n features from a model by fitting the model multiple times and at each step, removing the weakest features.
-        
-        -  
+        Wrapper-based feature selection using Recursive Feature Elimination with Cross-Validated (RFECV) feature selection technique.
     """
-
+    random.seed(seed_val)
     #min_features_to_select = 1  # Minimum number of features to consider
-    clf = LogisticRegression()
+    scaler = MinMaxScaler()
+    X_normlized = scaler.fit_transform(X)
+
+    clf = LogisticRegression(max_iter=1000)
     cv = StratifiedKFold(5)
 
     rfecv = RFECV(
@@ -89,10 +98,10 @@ def WrapperGA(X, y):
         #min_features_to_select=min_features_to_select,
         n_jobs=2,
     )
-    rfecv.fit(X, y)
+    rfecv.fit(X_normlized, y)
     
     # Get the accuracy of the best subset of features
-    accuracy = accuracy_score(y, rfecv.predict(X))
+    #accuracy = accuracy_score(y, rfecv.predict(X_normlized))
 
     # Names of selected features
     selected_features = X.columns[rfecv.support_] # support_: get boolean value for each feature, the feature with (True) means it selected feature
@@ -199,66 +208,74 @@ def main():
     competition_time_li = []
     acc_li = []
     # dataset file name
-    data_file =  'sonar.data'    # wbcd.data  , sonar.data
-    column_file = 'sonar.names'  # wbcd.names , sonar.names
+    data_file =  ['sonar.data', 'wbcd.data']    # wbcd.data  , sonar.data
+    column_file = ['sonar.names', 'wbcd.names']  # wbcd.names , sonar.names
     
-    # load data
-    dataset = load_data(column_file, data_file)
-    feature = dataset.iloc[:,:-1]
-    target = dataset.iloc[:,-1]
+    for file, file_columns in zip(data_file, column_file):
+        # load data
+        dataset = load_data(file_columns, file)
+        feature = dataset.iloc[:,:-1]
+        target = dataset.iloc[:,-1]
+        print(f'DATASET NAME: {file}\n')
 
-    for run in range(run_no):
-        start_time = time.time()  # Start timer for this run
+        # reset parameters with each dataset 
+        competition_time_li =[]
+        acc_li = []
 
-        # FEATURE FITNESS FUNCTION: 
-        WrapperGA_fs = WrapperGA(feature, target)  # Wrapper-based feature selection 
+        for run in range(run_no):
+            print(f'Run {run+1} of {run_no}:')
+            start_time = time.time()  # Start timer for this run
 
-        # DATA TASFORMATION: create new dataset for each filter approach, created datset that only contain selected feature 
-        WrapperGA_datset = dataset[:][list(WrapperGA_fs.array) + ['class']]
+            # FEATURE FITNESS FUNCTION: 
+            WrapperGA_fs = WrapperGA(feature, target, seed_value[run])  # Wrapper-based feature selection 
 
-        # INITIALIZATION: Initialize the population 
-        WrapperGA_population = initial_pop(population_size, WrapperGA_datset.iloc[:, :-1].shape[1], seed_value[run])
+            # DATA TASFORMATION: create new dataset for each filter approach, created datset that only contain selected feature 
+            WrapperGA_datset = dataset[:][list(WrapperGA_fs.array) + ['class']]
 
-        # Apply Selection process
-        for generation in range(generations):
+            # INITIALIZATION: Initialize the population 
+            WrapperGA_population = initial_pop(population_size, WrapperGA_datset.iloc[:, :-1].shape[1], seed_value[run])
 
-            # EVALUATE: clasification and evaluates the performance of the selected features
-            WrapperGA_fitness = [classification(individual, WrapperGA_datset.iloc[:,:-1].values, WrapperGA_datset.iloc[:,-1].values) for individual in WrapperGA_population]
+            # Apply Selection process
+            for generation in range(generations):
+                print(f'\tGeneration {generation+1} of {generations} . . .')
+                # EVALUATE: clasification and evaluates the performance of the selected features
+                WrapperGA_fitness = [classification(individual, WrapperGA_datset.iloc[:,:-1].values, WrapperGA_datset.iloc[:,-1].values) for individual in WrapperGA_population]
 
-            WrapperGA_parents = np.array(WrapperGA_population)[np.argsort(WrapperGA_fitness)][-2:]
+                WrapperGA_parents = np.array(WrapperGA_population)[np.argsort(WrapperGA_fitness)][-2:]
 
-            # CROSSOVER: Perform crossover to generate new offspring
-            WrapperGA_offspring = crossover(WrapperGA_parents[0], WrapperGA_parents[1], crossover_rate)
+                # CROSSOVER: Perform crossover to generate new offspring
+                WrapperGA_offspring = crossover(WrapperGA_parents[0], WrapperGA_parents[1], crossover_rate)
 
-            # MUTATION: Perform mutation on the new offspring
-            WrapperGA_offspring = [mutation(_, mutation_rate) for _ in WrapperGA_offspring]
+                # MUTATION: Perform mutation on the new offspring
+                WrapperGA_offspring = [mutation(_, mutation_rate) for _ in WrapperGA_offspring]
 
-            # REPLACEMENT: Replace the least fit individuals with the new offspring
-            WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
-            WrapperGA_fitness = np.array(WrapperGA_fitness)
-            WrapperGA_population = WrapperGA_population[np.argsort(WrapperGA_fitness)][:-2]
-            WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
+                # REPLACEMENT: Replace the least fit individuals with the new offspring
+                WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
+                WrapperGA_fitness = np.array(WrapperGA_fitness)
+                WrapperGA_population = WrapperGA_population[np.argsort(WrapperGA_fitness)][:-2]
+                WrapperGA_population = np.vstack((WrapperGA_population, WrapperGA_offspring))
+            
+            end_time = time.time()  # End timer for this run
+            competitive_time = end_time - start_time  # Calculate competitive time for this run
+            competition_time_li.append(competitive_time)
+            acc_li.append(max(WrapperGA_fitness))
+
+        # Create a table and calculate mean and STD
+        acc_mean, acc_std = calculate_stats(acc_li)
+        acc_li = [round(x, 2) for x in acc_li]
+
+        competitive_time_mean, competitive_time_std = calculate_stats(competition_time_li)
+        competition_time_li = [round(x, 2) for x in competition_time_li]
         
-        end_time = time.time()  # End timer for this run
-        competitive_time = end_time - start_time  # Calculate competitive time for this run
-        competition_time_li.append(competitive_time)
-        acc_li.append(max(WrapperGA_fitness))
+        acc_table = create_table(acc_li, round(acc_mean), round(acc_std))
+        competitive_time_table = create_table(competition_time_li, round(competitive_time_mean), round(competitive_time_std))
 
-    # Create a table and calculate mean and STD
-    acc_mean, acc_std = calculate_stats(acc_li)
-    acc_li = [round(x, 2) for x in acc_li]
-
-    competitive_time_mean, competitive_time_std = calculate_stats(competition_time_li)
-    competition_time_li = [round(x, 2) for x in competition_time_li]
-    
-    acc_table = create_table(acc_li, round(acc_mean), round(acc_std))
-    competitive_time_table = create_table(competition_time_li, round(competitive_time_mean), round(competitive_time_std))
-
-    # Print the best fitness values for each generation
-    #print('Generation {}: WrapperGA best fitness = {:.4f}'.format(generation, max(WrapperGA_fitness)))
-    #print(competition_time_li)
-    print(f'Accuracy Table\n {acc_table}')
-    print(f'Competional Time Table:\n {competitive_time_table}')
+        # Print the best fitness values for each generation
+        #print('Generation {}: WrapperGA best fitness = {:.4f}'.format(generation, max(WrapperGA_fitness)))
+        #print(competition_time_li)
+        print(f'Accuracy Table\n {acc_table}')
+        print(f'Competional Time Table:\n {competitive_time_table}')
+        print('-----------------------------------------\n')
 
 if __name__ == "__main__":
     main()
